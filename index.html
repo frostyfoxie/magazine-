@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realistic HTML5 Magazine Flipbook</title>
+    <title>Personal 3-Part HTML5 Magazine</title>
     
     <!-- Dependencies (jQuery, Turn.js, and PDF.js) -->
     <script src="https://jquery.com"></script>
@@ -22,11 +21,11 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             user-select: none;
         }
 
-        /* Top Toolbar Controls */
+        /* Top Controls Dashboard */
         #toolbar {
             position: absolute;
             top: 20px;
@@ -57,31 +56,26 @@
             transform: scale(1.05);
         }
 
-        .btn:active {
-            transform: scale(0.95);
-        }
-
-        /* Loading Screen */
+        /* Loading Overlay screen */
         #loading {
             color: white;
             font-size: 1.2rem;
             position: absolute;
             z-index: 10;
-            letter-spacing: 1px;
         }
 
-        /* Viewport Wrapper supporting Zoom */
+        /* Zoom Scaler Container */
         #viewport {
             width: 100%;
             height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: transform 0.3s ease; /* Smooth Zooming */
+            transition: transform 0.3s ease;
             transform: scale(1);
         }
 
-        /* Main Flipbook Wrapper */
+        /* Main Flipbook Viewport Container */
         #flipbook-container {
             width: 1000px;
             height: 650px;
@@ -94,11 +88,7 @@
             height: 100%;
         }
 
-        /* 2D Realistic Paper, Shadows, and Center Crease */
-        .page-wrapper {
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
-        }
-
+        /* Canvas rendering element styles */
         .page-canvas {
             background-color: white;
             width: 100%;
@@ -106,34 +96,34 @@
             display: block;
         }
 
-        /* Overlay Magazines attributes: Crease Shadow & Spine Shine Effect */
+        /* 3D Realism: Ambient Magazine Crease & Gloss Overlays */
         .magazine-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none; /* Allows interacting with turn.js underneath */
+            pointer-events: none; /* Passes touches through down to Turn.js mouse-drags */
             z-index: 5;
         }
 
-        /* Double-page Magazine mode inner shadow depth styling */
+        /* Double-page configuration depth map */
         .double-mode .magazine-overlay {
             background: 
-                linear-gradient(to right, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 3%, rgba(255,255,255,0.1) 4%, rgba(255,255,255,0) 10%), /* Left edge gloss */
-                linear-gradient(to left, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 3%, rgba(255,255,255,0.1) 4%, rgba(255,255,255,0) 10%),  /* Right edge gloss */
-                linear-gradient(to right, rgba(0,0,0,0) 48%, rgba(0,0,0,0.4) 49%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.4) 51%, rgba(0,0,0,0) 52%); /* Center Spine Crease */
+                linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%),
+                linear-gradient(to left, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%),
+                linear-gradient(to right, rgba(0,0,0,0) 48%, rgba(0,0,0,0.3) 49.5%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 50.5%, rgba(0,0,0,0) 52%);
         }
 
-        /* Single page view styling overlays */
+        /* Single vertical page configuration depth map */
         .single-mode .magazine-overlay {
-            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%);
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%);
         }
     </style>
 </head>
 <body>
 
-    <!-- Upper Control Dash -->
+    <!-- Upper Interactive Toolbar -->
     <div id="toolbar">
         <button class="btn" id="prev-btn">◀ Prev</button>
         <button class="btn" id="view-btn">View: Double Page</button>
@@ -141,14 +131,14 @@
         <button class="btn" id="next-btn">Next ▶</button>
     </div>
 
-    <!-- Spinner Loading Status -->
-    <div id="loading">Processing Magazine Pages... <span id="progress">0</span>%</div>
+    <!-- Active Stream Progress Alert -->
+    <div id="loading">Assembling Parts... <span id="progress">0</span>%</div>
 
-    <!-- Magazine Container Layout Structure -->
+    <!-- Magazine Matrix Screen Wrapper -->
     <div id="viewport">
         <div id="flipbook-container" class="double-mode">
             <div id="flipbook"></div>
-            <!-- The ambient overlay adding depth, shine, and the mid spine crease -->
+            <!-- Dynamic 3D depth shadows look layer overlay -->
             <div class="magazine-overlay"></div>
         </div>
     </div>
@@ -156,9 +146,9 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
 
-        // 🟢 PLACE YOUR RAW GITHUB URL IN THIS VARIABLE:
-        const pdfUrl = 'file image.pdf'; 
-
+        // 🟢 List your file paths sequentially here (since they are in the same folder, simple filenames work)
+        const pdfParts = ['part1.pdf', 'part2.pdf', 'part3.pdf'];
+        
         const flipbook = $('#flipbook');
         const container = $('#flipbook-container');
         const viewport = $('#viewport');
@@ -167,75 +157,74 @@
 
         let isZoomed = false;
         let isSinglePage = false;
-        let totalPages = 0;
 
-        async function generateMagazine() {
+        async function processMagazineParts() {
             try {
-                // 1. Grab file contents through cors-friendly pipelines
-                const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-                totalPages = pdf.numPages;
+                let currentProcessed = 0;
+                const totalParts = pdfParts.length;
 
-                // 2. Map structural code fragments for the sheets
-                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-                    const page = await pdf.getPage(pageNum);
-                    
-                    // High scale factor prevents blurry text assets
-                    const pageViewport = page.getViewport({ scale: 2.0 });
-                    
-                    const canvas = document.createElement('canvas');
-                    canvas.className = 'page-canvas';
-                    canvas.height = pageViewport.height;
-                    canvas.width = pageViewport.width;
+                // 1. Loop through all 3 parts in order
+                for (let partIdx = 0; partIdx < totalParts; partIdx++) {
+                    const pdfUrl = pdfParts[partIdx];
+                    const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+                    const numPages = pdf.numPages;
 
-                    const context = canvas.getContext('2d');
-                    const renderContext = {
-                        canvasContext: context,
-                        viewport: pageViewport
-                    };
+                    // 2. Extract pages from inside the current part
+                    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const pageViewport = page.getViewport({ scale: 2.0 }); // High scale maintains crystal clear text when zoomed
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'page-canvas';
+                        canvas.height = pageViewport.height;
+                        canvas.width = pageViewport.width;
 
-                    await page.render(renderContext).promise;
+                        const context = canvas.getContext('2d');
+                        await page.render({ canvasContext: context, viewport: pageViewport }).promise;
 
-                    // Wrap elements dynamically for structural integrity 
-                    const pageDiv = document.createElement('div');
-                    pageDiv.appendChild(canvas);
-                    flipbook.append(pageDiv);
+                        // Add page node into DOM structure
+                        const pageDiv = document.createElement('div');
+                        pageDiv.appendChild(canvas);
+                        flipbook.append(pageDiv);
+                    }
 
-                    // Track processing loop status updates
-                    let percent = Math.round((pageNum / totalPages) * 100);
+                    // Update UI assembly status bar
+                    currentProcessed++;
+                    let percent = Math.round((currentProcessed / totalParts) * 100);
                     progressText.text(percent);
                 }
 
-                // 3. Clear asset screen overlays and boot book structures
+                // 3. Reveal book and spin up interaction frameworks
                 loadingDiv.hide();
                 container.css('visibility', 'visible');
 
-                // 4. Initialize Turn.js (Enables automated corner detection/peeling)
+                // Boot Turn.js Engine (Enables side drag peel corners automatically)
                 flipbook.turn({
                     width: 1000,
                     height: 650,
                     autoCenter: true,
                     display: 'double',
-                    duration: 1000, // Smooth transition pace
+                    duration: 900,  
                     acceleration: true,
-                    gradients: true, // Enables native shadow transitions inside Turn.js
-                    elevation: 50    // Lift corner simulation height
+                    gradients: true, // Internal realistic page transition lighting shifts
+                    elevation: 60    // Depth intensity metric of the folding corner action
                 });
 
             } catch (error) {
-                loadingDiv.text('Error accessing your GitHub file repository string directly.');
+                loadingDiv.text('Error gathering magazine pieces. Check your file naming alignment.');
                 console.error(error);
             }
         }
 
-        // --- CONTROLS / TOOLBAR INTERACTION BUSINESS LOGIC ---
+        // --- BUTTON INTERACTION LOGIC ---
 
-        // Button Click Page Turn Actions
+        // Manual Flips
         $('#prev-btn').on('click', () => flipbook.turn('previous'));
         $('#next-btn').on('click', () => flipbook.turn('next'));
 
-        // View Mode Toggle (Single vs Double spreads)
+        // View Mode Toggle Engine (Double Spread vs Single Page Layouts)
         $('#view-btn').on('click', function() {
-            if (isZoomed) resetZoom(); // Force clean viewport layout scale bounds first
+            if (isZoomed) resetZoom();
             
             if (!isSinglePage) {
                 flipbook.turn('display', 'single');
@@ -253,14 +242,13 @@
             flipbook.turn('resize');
         });
 
-        // Magazine Viewport CSS Scaling Zoom Engine
+        // Responsive Zoom Transformation Matrix Engine
         $('#zoom-btn').on('click', function() {
             if (!isZoomed) {
-                viewport.style.transform = "scale(1.6)"; // Scale up entire framework wrapper smoothly
-                $(this).text('Zoom: 160%');
+                viewport.css('transform', 'scale(1.65)'); // Smoothly scale layout elements without blurring
+                $(this).text('Zoom: 165%');
                 isZoomed = true;
-                // Enable dragging tracking or native layout scrolling options if preferred
-                document.body.style.overflow = "auto"; 
+                document.body.style.overflow = "auto"; // Unlock viewport body panning if required
             } else {
                 resetZoom();
             }
@@ -272,3 +260,8 @@
             isZoomed = false;
         }
 
+        // Initialize multi-part workflow
+        processMagazineParts();
+    </script>
+</body>
+</html>
