@@ -1,1 +1,274 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic HTML5 Magazine Flipbook</title>
+    
+    <!-- Dependencies (jQuery, Turn.js, and PDF.js) -->
+    <script src="https://jquery.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+
+    <style>
+        body {
+            background: radial-gradient(circle, #444446 0%, #1c1c1e 100%);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        /* Top Toolbar Controls */
+        #toolbar {
+            position: absolute;
+            top: 20px;
+            display: flex;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            background: #ffffff;
+            color: #1c1c1e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #e5e5ea;
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Loading Screen */
+        #loading {
+            color: white;
+            font-size: 1.2rem;
+            position: absolute;
+            z-index: 10;
+            letter-spacing: 1px;
+        }
+
+        /* Viewport Wrapper supporting Zoom */
+        #viewport {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s ease; /* Smooth Zooming */
+            transform: scale(1);
+        }
+
+        /* Main Flipbook Wrapper */
+        #flipbook-container {
+            width: 1000px;
+            height: 650px;
+            visibility: hidden;
+            position: relative;
+        }
+
+        #flipbook {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 2D Realistic Paper, Shadows, and Center Crease */
+        .page-wrapper {
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+        }
+
+        .page-canvas {
+            background-color: white;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Overlay Magazines attributes: Crease Shadow & Spine Shine Effect */
+        .magazine-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows interacting with turn.js underneath */
+            z-index: 5;
+        }
+
+        /* Double-page Magazine mode inner shadow depth styling */
+        .double-mode .magazine-overlay {
+            background: 
+                linear-gradient(to right, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 3%, rgba(255,255,255,0.1) 4%, rgba(255,255,255,0) 10%), /* Left edge gloss */
+                linear-gradient(to left, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 3%, rgba(255,255,255,0.1) 4%, rgba(255,255,255,0) 10%),  /* Right edge gloss */
+                linear-gradient(to right, rgba(0,0,0,0) 48%, rgba(0,0,0,0.4) 49%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.4) 51%, rgba(0,0,0,0) 52%); /* Center Spine Crease */
+        }
+
+        /* Single page view styling overlays */
+        .single-mode .magazine-overlay {
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Upper Control Dash -->
+    <div id="toolbar">
+        <button class="btn" id="prev-btn">◀ Prev</button>
+        <button class="btn" id="view-btn">View: Double Page</button>
+        <button class="btn" id="zoom-btn">Zoom: 100%</button>
+        <button class="btn" id="next-btn">Next ▶</button>
+    </div>
+
+    <!-- Spinner Loading Status -->
+    <div id="loading">Processing Magazine Pages... <span id="progress">0</span>%</div>
+
+    <!-- Magazine Container Layout Structure -->
+    <div id="viewport">
+        <div id="flipbook-container" class="double-mode">
+            <div id="flipbook"></div>
+            <!-- The ambient overlay adding depth, shine, and the mid spine crease -->
+            <div class="magazine-overlay"></div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
+
+        // 🟢 PLACE YOUR RAW GITHUB URL IN THIS VARIABLE:
+        const pdfUrl = 'file image.pdf'; 
+
+        const flipbook = $('#flipbook');
+        const container = $('#flipbook-container');
+        const viewport = $('#viewport');
+        const loadingDiv = $('#loading');
+        const progressText = $('#progress');
+
+        let isZoomed = false;
+        let isSinglePage = false;
+        let totalPages = 0;
+
+        async function generateMagazine() {
+            try {
+                // 1. Grab file contents through cors-friendly pipelines
+                const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+                totalPages = pdf.numPages;
+
+                // 2. Map structural code fragments for the sheets
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    
+                    // High scale factor prevents blurry text assets
+                    const pageViewport = page.getViewport({ scale: 2.0 });
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'page-canvas';
+                    canvas.height = pageViewport.height;
+                    canvas.width = pageViewport.width;
+
+                    const context = canvas.getContext('2d');
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: pageViewport
+                    };
+
+                    await page.render(renderContext).promise;
+
+                    // Wrap elements dynamically for structural integrity 
+                    const pageDiv = document.createElement('div');
+                    pageDiv.appendChild(canvas);
+                    flipbook.append(pageDiv);
+
+                    // Track processing loop status updates
+                    let percent = Math.round((pageNum / totalPages) * 100);
+                    progressText.text(percent);
+                }
+
+                // 3. Clear asset screen overlays and boot book structures
+                loadingDiv.hide();
+                container.css('visibility', 'visible');
+
+                // 4. Initialize Turn.js (Enables automated corner detection/peeling)
+                flipbook.turn({
+                    width: 1000,
+                    height: 650,
+                    autoCenter: true,
+                    display: 'double',
+                    duration: 1000, // Smooth transition pace
+                    acceleration: true,
+                    gradients: true, // Enables native shadow transitions inside Turn.js
+                    elevation: 50    // Lift corner simulation height
+                });
+
+            } catch (error) {
+                loadingDiv.text('Error accessing your GitHub file repository string directly.');
+                console.error(error);
+            }
+        }
+
+        // --- CONTROLS / TOOLBAR INTERACTION BUSINESS LOGIC ---
+
+        // Button Click Page Turn Actions
+        $('#prev-btn').on('click', () => flipbook.turn('previous'));
+        $('#next-btn').on('click', () => flipbook.turn('next'));
+
+        // View Mode Toggle (Single vs Double spreads)
+        $('#view-btn').on('click', function() {
+            if (isZoomed) resetZoom(); // Force clean viewport layout scale bounds first
+            
+            if (!isSinglePage) {
+                flipbook.turn('display', 'single');
+                container.css({ width: '500px', height: '650px' });
+                container.removeClass('double-mode').addClass('single-mode');
+                $(this).text('View: Single Page');
+                isSinglePage = true;
+            } else {
+                flipbook.turn('display', 'double');
+                container.css({ width: '1000px', height: '650px' });
+                container.removeClass('single-mode').addClass('double-mode');
+                $(this).text('View: Double Page');
+                isSinglePage = false;
+            }
+            flipbook.turn('resize');
+        });
+
+        // Magazine Viewport CSS Scaling Zoom Engine
+        $('#zoom-btn').on('click', function() {
+            if (!isZoomed) {
+                viewport.style.transform = "scale(1.6)"; // Scale up entire framework wrapper smoothly
+                $(this).text('Zoom: 160%');
+                isZoomed = true;
+                // Enable dragging tracking or native layout scrolling options if preferred
+                document.body.style.overflow = "auto"; 
+            } else {
+                resetZoom();
+            }
+        });
+
+        function resetZoom() {
+            viewport.css('transform', 'scale(1)');
+            $('#zoom-btn').text('Zoom: 100%');
+            isZoomed = false;
+        }
+
