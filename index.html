@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal 3-Part HTML5 Magazine</title>
+    <title>A4 Magazine Flipbook</title>
     
     <!-- Dependencies (jQuery, Turn.js, and PDF.js) -->
     <script src="https://jquery.com"></script>
@@ -25,7 +25,7 @@
             user-select: none;
         }
 
-        /* Top Controls Dashboard */
+        /* Top Control Buttons */
         #toolbar {
             position: absolute;
             top: 20px;
@@ -56,7 +56,7 @@
             transform: scale(1.05);
         }
 
-        /* Loading Overlay screen */
+        /* Loading Message Screen */
         #loading {
             color: white;
             font-size: 1.2rem;
@@ -64,7 +64,7 @@
             z-index: 10;
         }
 
-        /* Zoom Scaler Container */
+        /* Viewport Container for Smooth Zooming */
         #viewport {
             width: 100%;
             height: 100%;
@@ -75,10 +75,10 @@
             transform: scale(1);
         }
 
-        /* Main Flipbook Viewport Container */
+        /* Flipbook Box (Locked to strict A4 Ratio) */
         #flipbook-container {
-            width: 1000px;
-            height: 650px;
+            width: 900px;  /* 450px * 2 for spreads */
+            height: 636px; /* A4 aspect ratio height calculation */
             visibility: hidden;
             position: relative;
         }
@@ -88,7 +88,7 @@
             height: 100%;
         }
 
-        /* Canvas rendering element styles */
+        /* Individual page styling */
         .page-canvas {
             background-color: white;
             width: 100%;
@@ -96,26 +96,26 @@
             display: block;
         }
 
-        /* 3D Realism: Ambient Magazine Crease & Gloss Overlays */
+        /* 2D Realism Overlay: Crease Shadow & Spine Shine Effect */
         .magazine-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none; /* Passes touches through down to Turn.js mouse-drags */
+            pointer-events: none; /* Let clicks pass straight through to pages */
             z-index: 5;
         }
 
-        /* Double-page configuration depth map */
+        /* Shadow filters for regular inside pages */
         .double-mode .magazine-overlay {
             background: 
-                linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%),
-                linear-gradient(to left, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%),
-                linear-gradient(to right, rgba(0,0,0,0) 48%, rgba(0,0,0,0.3) 49.5%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 50.5%, rgba(0,0,0,0) 52%);
+                linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%), /* Left page glow */
+                linear-gradient(to left, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0) 4%, rgba(255,255,255,0.08) 5%, rgba(255,255,255,0) 12%),  /* Right page glow */
+                linear-gradient(to right, rgba(0,0,0,0) 48%, rgba(0,0,0,0.3) 49.5%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 50.5%, rgba(0,0,0,0) 52%); /* Center spine fold line */
         }
 
-        /* Single vertical page configuration depth map */
+        /* Ambient filter for front cover, back cover, or single page plain view */
         .single-mode .magazine-overlay {
             background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%);
         }
@@ -123,7 +123,7 @@
 </head>
 <body>
 
-    <!-- Upper Interactive Toolbar -->
+    <!-- Upper Toolbar Menu -->
     <div id="toolbar">
         <button class="btn" id="prev-btn">◀ Prev</button>
         <button class="btn" id="view-btn">View: Double Page</button>
@@ -131,14 +131,14 @@
         <button class="btn" id="next-btn">Next ▶</button>
     </div>
 
-    <!-- Active Stream Progress Alert -->
-    <div id="loading">Assembling Parts... <span id="progress">0</span>%</div>
+    <!-- Processing Notification -->
+    <div id="loading">Assembling A4 Pages... <span id="progress">0</span>%</div>
 
-    <!-- Magazine Matrix Screen Wrapper -->
+    <!-- Main Workspace Container Layout -->
     <div id="viewport">
         <div id="flipbook-container" class="double-mode">
             <div id="flipbook"></div>
-            <!-- Dynamic 3D depth shadows look layer overlay -->
+            <!-- Interactive ambient paper shine/shadow filter layer -->
             <div class="magazine-overlay"></div>
         </div>
     </div>
@@ -146,7 +146,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
 
-        // 🟢 List your file paths sequentially here (since they are in the same folder, simple filenames work)
+        // 🟢 Files are loaded sequentially from the folder automatically
         const pdfParts = ['part1.pdf', 'part2.pdf', 'part3.pdf'];
         
         const flipbook = $('#flipbook');
@@ -172,7 +172,9 @@
                     // 2. Extract pages from inside the current part
                     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
                         const page = await pdf.getPage(pageNum);
-                        const pageViewport = page.getViewport({ scale: 2.0 }); // High scale maintains crystal clear text when zoomed
+                        
+                        // High scale rendering gives pristine details when zoomed
+                        const pageViewport = page.getViewport({ scale: 2.5 }); 
                         
                         const canvas = document.createElement('canvas');
                         canvas.className = 'page-canvas';
@@ -182,86 +184,85 @@
                         const context = canvas.getContext('2d');
                         await page.render({ canvasContext: context, viewport: pageViewport }).promise;
 
-                        // Add page node into DOM structure
+                        // Append new node block to our flipbook engine structure
                         const pageDiv = document.createElement('div');
                         pageDiv.appendChild(canvas);
                         flipbook.append(pageDiv);
                     }
 
-                    // Update UI assembly status bar
+                    // Update UI assembly status percentage loading details
                     currentProcessed++;
                     let percent = Math.round((currentProcessed / totalParts) * 100);
                     progressText.text(percent);
                 }
 
-                // 3. Reveal book and spin up interaction frameworks
+                // 3. Unhide layouts and engage Turn.js
                 loadingDiv.hide();
                 container.css('visibility', 'visible');
 
-                // Boot Turn.js Engine (Enables side drag peel corners automatically)
+                // Boot Turn.js Engine
                 flipbook.turn({
-                    width: 1000,
-                    height: 650,
+                    width: 900,       // Full double-page flat sizing width bound
+                    height: 636,      // Height constraint
                     autoCenter: true,
                     display: 'double',
                     duration: 900,  
                     acceleration: true,
-                    gradients: true, // Internal realistic page transition lighting shifts
-                    elevation: 60    // Depth intensity metric of the folding corner action
+                    gradients: true,  // Enables native flip transition shade layers
+                    elevation: 60     // Peel lift elevation amplitude metric
+                });
+
+                // 4. SMART COVER TRACKING ENGINE
+                // Forces front cover (page 1) and back cover to load alone cleanly
+                flipbook.bind('turning', function(event, page, view) {
+                    if (page == 1 || page == flipbook.turn('pages')) {
+                        container.removeClass('double-mode').addClass('single-mode');
+                    } else if (!isSinglePage) {
+                        container.removeClass('single-mode').addClass('double-mode');
+                    }
                 });
 
             } catch (error) {
-                loadingDiv.text('Error gathering magazine pieces. Check your file naming alignment.');
+                loadingDiv.text('Error gathering parts. Make sure filenames are correct.');
                 console.error(error);
             }
         }
 
-        // --- BUTTON INTERACTION LOGIC ---
+        // --- INTERACTION BUTTON ACTIONS ---
 
-        // Manual Flips
+        // Manual Navigation Flips
         $('#prev-btn').on('click', () => flipbook.turn('previous'));
         $('#next-btn').on('click', () => flipbook.turn('next'));
 
-        // View Mode Toggle Engine (Double Spread vs Single Page Layouts)
+        // View Mode Toggle (Single vertical page plain mode vs double-spreads)
         $('#view-btn').on('click', function() {
             if (isZoomed) resetZoom();
             
             if (!isSinglePage) {
                 flipbook.turn('display', 'single');
-                container.css({ width: '500px', height: '650px' });
+                container.css({ width: '450px', height: '636px' });
                 container.removeClass('double-mode').addClass('single-mode');
                 $(this).text('View: Single Page');
                 isSinglePage = true;
             } else {
                 flipbook.turn('display', 'double');
-                container.css({ width: '1000px', height: '650px' });
-                container.removeClass('single-mode').addClass('double-mode');
+                container.css({ width: '900px', height: '636px' });
+                
+                // Restore mid fold line shadow only if we are not sitting on a cover page
+                let currentPage = flipbook.turn('page');
+                if (currentPage !== 1 && currentPage !== flipbook.turn('pages')) {
+                    container.removeClass('single-mode').addClass('double-mode');
+                }
+                
                 $(this).text('View: Double Page');
                 isSinglePage = false;
             }
             flipbook.turn('resize');
-        });
+            });
+        // Matrix Zoom Scaling engine
+        
+        $('#zoom-btn').on('click', function() {if (!isZoomed) {viewport.css('transform', 'scale(1.65)'); // Magnifies layout assets perfectly$(this).text('Zoom: 165%');isZoomed = true;document.body.style.overflow = "auto"; 
+                                                               
+                                                               // Unlock outer canvas scrolling bounds} else {resetZoom();}});
 
-        // Responsive Zoom Transformation Matrix Engine
-        $('#zoom-btn').on('click', function() {
-            if (!isZoomed) {
-                viewport.css('transform', 'scale(1.65)'); // Smoothly scale layout elements without blurring
-                $(this).text('Zoom: 165%');
-                isZoomed = true;
-                document.body.style.overflow = "auto"; // Unlock viewport body panning if required
-            } else {
-                resetZoom();
-            }
-        });
-
-        function resetZoom() {
-            viewport.css('transform', 'scale(1)');
-            $('#zoom-btn').text('Zoom: 100%');
-            isZoomed = false;
-        }
-
-        // Initialize multi-part workflow
-        processMagazineParts();
-    </script>
-</body>
-</html>
+        function resetZoom() {viewport.css('transform', 'scale(1)');$('#zoom-btn').text('Zoom: 100%');isZoomed = false;}// Run entire system architecture setup sequenceprocessMagazineParts();
